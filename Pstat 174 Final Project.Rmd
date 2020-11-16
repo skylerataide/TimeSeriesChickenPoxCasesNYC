@@ -1,0 +1,504 @@
+---
+title: "Pstat 174 Final Project"
+author: "Skyler Ataide"
+date: "6/2/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tsdl)
+tsdl
+
+tsdl <- subset(tsdl,"Health")
+tsdl
+
+attributes(tsdl[[6]])
+
+View(tsdl[[6]])
+
+num_cases <-as.vector(tsdl[[6]]) 
+
+plot.ts(num_cases)
+
+```
+
+library(tsdl)
+tsdl
+
+tsdl <- subset(tsdl,"Health")
+tsdl
+
+attributes(tsdl[[6]])
+
+View(tsdl[[6]])
+
+num_cases <-ts(as.vector(tsdl[[6]]))
+
+plot.ts(num_cases, ylab = "Number of Chickenpox Cases")
+
+nt = length(num_cases)
+
+## Add trend line to data plot:
+fit <- lm(num_cases ~ as.numeric(1:nt)); abline(fit, col="red", ylab = "Number of Chickenpox Cases")
+
+mean(num_cases)
+
+## Add mean (constant) to the data plot:
+abline(h=mean(num_cases), col="blue")
+
+## Plot chickenpox data with years on x=axis: 
+tsdata <- ts(num_cases, start = c(1931,1), end = c(1972,2), frequency = 12)
+
+ts.plot(tsdata, main = "Raw Data Chickenpox Cases NYC 1931-1972", ylab="Number of Chickenpox Cases")
+
+fit <- lm(tsdata ~ as.numeric(1:length(tsdata))); abline(fit, col="red")
+
+abline(h=mean(tsdata), col="blue")
+
+
+
+
+## Partition dataset to two parts for model training and model validation; work with training set:
+nc.train = ts(num_cases[c(1:444)]) # Training Set
+nc.test = ts(num_cases[c(445:498)]) # Test Set 
+
+
+## Chickenpox Training (truncated) Set: 444 observations
+plot.ts(nc.train,  main = "Training Set:Truncated Chickenpox Cases NYC", ylab="Number of Chickenpox Cases")
+
+
+fit <- lm(nc.train ~ as.numeric(1:length(nc.train))); abline(fit, col="red")
+
+abline(h=mean(num_cases), col="blue")
+
+## Immediate Observations: Non-constant of variance and mean. No obvious increasing or decreasing trend. Highly Non-Stationary. 
+
+## Confirm non-stationarity of original data (truncated)(nc.train)
+## Plot Histogram Training Set:
+hist(nc.train, col="dark blue", xlab="", main="Histogram; Truncated Chickenpox Data")
+## Observations: Histogram is badly skewed. 
+
+## Plot acf of Training Set
+acf(nc.train,lag.max=NULL, main="ACF of the Truncated ChickenPox Data")
+## Observations: Seasonality is obvious, at lag 12 it starts to repeat the previous cycle. ACFs remain large. 
+
+pacf(nc.train,lag.max=NULL, main="PACF of the Truncated ChickenPox Data")
+
+
+## Decomposition of the Log-Transformed truncated data: 
+library(ggplot2)
+library(ggfortify)
+
+y <- ts(as.ts(nc.train.stat), frequency = 12)
+decomp <- decompose(y, type = "additive")
+plot(decomp)
+
+## Decomposition Observations: the dataset has strong seasonality pattern. the lower bound of the data is constant, whereas the peak is changing.  there is a overall decreasing trend in the pattern. The data itself is not stationary as the variance is changing.
+
+## Box-Cox Transformation:
+bcTransform <- boxCox(nc.train~ as.numeric(1:length(nc.train)), main="Box-Cox Transformation")
+
+## Command to give the value of lambda in the Box-Cox plot. 
+bcTransform$x[which(bcTransform$y == max(bcTransform$y))] 
+## lambda = 0.3434343
+
+## Perform transformations, plot transformed data, histograms:
+lambda=bcTransform$x[which(bcTransform$y == max(bcTransform$y))]
+nc.train.bc = ts((1/lambda)*(nc.train^lambda-1))
+nc.train.log <- ts(log(nc.train))
+
+## Plot of truncated data after Box-Cox Transformation
+plot.ts(nc.train.bc, main="Box-Cox Transformation: Truncated Chickenpox Data", ylab="Number of Chickenpox Cases")
+fit <- lm(nc.train.bc ~ as.numeric(1:length(nc.train.bc))); abline(fit, col="red") 
+mean(nc.train.bc)
+abline(h=mean(nc.train.bc), col="blue")
+
+## Histogram of truncated data after Box-Cox Transformation
+hist(nc.train.bc, col="blue", xlab="", main="Histogram; Box-Cox Transformation")
+var(nc.train.bc)
+
+## Variance = 72.63398
+
+## Plot of truncated data after Log Transformation
+plot.ts(nc.train.log, main="Log Transformed Truncated Chickenpox Data", ylab="Number of Chickenpox Cases")
+
+fit <- lm(nc.train.log ~ as.numeric(1:length(nc.train.log))); abline(fit, col="red") 
+mean(nc.train.log)
+abline(h=mean(nc.train.log), col="blue")
+
+var(nc.train.log)
+## Observations: Variance = 1.099665
+
+## Histogram of the truncated data after Log Transform: 
+hist(nc.train.log, col="blue", xlab="", main="Histogram; Log Transformation")
+
+
+## Differencing of the Log-Transformed truncated data: 
+## Differencing at Lag 12:
+nc.train.log12 <- ts(diff(nc.train.log, lag=12))
+plot.ts(nc.train.log12, main="Log Transformed Data Differenced at Lag 12")
+
+fit <- lm(nc.train.log12 ~ as.numeric(1:length(nc.train.log12))); abline(fit, col="red") 
+mean(nc.train.log12)
+abline(h=mean(nc.train.log12), col="blue")
+
+var(nc.train.log12)
+## Variance = 0.1759289 log transformed and differenced at lag 12
+
+## Differencing apt.log at Lag 12 and Lag 1: 
+nc.train.stat <- ts(diff(nc.train.log12, lag=1))
+plot.ts(nc.train.stat, main="Log Transformed Data Differenced at Lags 12 & 1")
+
+fit <- lm(nc.train.stat ~ as.numeric(1:length(nc.train.stat))); abline(fit, col="red")
+
+mean(nc.train.stat)
+abline(h=mean(nc.train.stat), col="blue")
+
+var(nc.train.stat)
+## Observations: Variance = 0.09697977 LOWEST VARIANCE YET! No more seasonality. No more Trend. The data looks stationary, but now we must check the acf's to confirm. 
+
+
+## Plot of ACF of log-transformed truncated data: 
+acf(nc.train.log, lag.max=NULL, main="ACF of the log(U_t)")
+## Observations: Non-stationarity. Seasonality is apparent. 
+
+## Plot of ACF of log-transformed truncated data Differenced at lag 12: 
+acf(nc.train.log12, lag.max=NULL, main="ACF of the log(U_t), differenced at lag 12")
+## Observations: Seasonality, non-stationarity. 
+
+## Plot of ACF of log-transformed truncated data Differenced at lag 12 and at Lag 1:
+acf(nc.train.stat, lag.max=NULL, main="ACF of the Log Transformed Data, Differenced at Lags 12 & 1")
+## Observations: ACF decay corresponds to a stationary process
+
+## Decision: Work with the log-transformed truncated data differenced at lag 12 and lag 1. 
+
+par(mfrow=c(1,1))
+
+## Compare histograms of log-transformed truncated data:
+## Histogram of log-transformed truncated data:
+hist(nc.train.log, col="blue", xlab="", main="Histogram; Log Transformation")
+
+##Histogram of log transformed truncated data differenced at lag 12
+hist(nc.train.log12, col="blue", xlab="", main="Histogram; Log Transform, Differenced Lag 12")
+
+## Histogram of log-transformed truncated data differenced at lag 12 and lag 1:
+hist(nc.train.stat, col="blue", xlab="", main="Histogram; Log Transform Differenced Lags 12 & 1")
+## Observations: This histogram looks symmetric and almost Gaussian. 
+
+## Histogram of transformed and differenced data with normal curve:
+hist(nc.train.stat, density=20,breaks=20, col="blue", xlab="", prob=TRUE, main="Log Transform Differenced Lags 12 & 1 + Normal Curve")
+m<-mean(nc.train.stat)
+std<- sqrt(var(nc.train.stat))
+curve( dnorm(x,m,std), add=TRUE )
+
+## Plot PACF:
+pacf(nc.train.stat, lag.max=NULL, main="PACF of the Log Transformed Data, Differenced at Lags 12 & 1")
+
+auto.arima(nc.train.log, D=1, d=1)
+
+
+test(nc.train.stat)
+
+arima(nc.train.log, order=c(0,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -15.53
+
+arima(nc.train.log, order=c(0,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -22.26
+
+arima(nc.train.log, order=c(0,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.02
+
+arima(nc.train.log, order=c(0,1,4), seasonal = list(order = c(0,1,2), period = 12), method="ML")
+## aic = -55.48
+
+arima(nc.train.log, order=c(1,1,0), seasonal = list(order = c(0,1,0), period = 12), method="ML")
+## aic = 216.47
+
+arima(nc.train.log, order=c(2,1,0), seasonal = list(order = c(0,1,0), period = 12), method="ML")
+## aic = 211.87
+
+arima(nc.train.log, order=c(3,1,0), seasonal = list(order = c(0,1,0), period = 12), method="ML")
+## aic = 209.21
+
+arima(nc.train.log, order=c(1,1,0), seasonal = list(order = c(1,1,0), period = 12), method="ML")
+## aic = 90.5
+
+arima(nc.train.log, order=c(2,1,0), seasonal = list(order = c(1,1,0), period = 12), method="ML")
+## aic = 80.84
+
+arima(nc.train.log, order=c(3,1,0), seasonal = list(order = c(1,1,0), period = 12), method="ML")
+## aic = 81.95
+
+arima(nc.train.log, order=c(2,1,0), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -7.85
+
+arima(nc.train.log, order=c(3,1,0), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -7.75
+
+arima(nc.train.log, order=c(0,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -15.53
+
+arima(nc.train.log, order=c(1,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.9
+
+arima(nc.train.log, order=c(2,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -57.19
+
+arima(nc.train.log, order=c(3,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.27
+
+arima(nc.train.log, order=c(1,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -53.92
+
+arima(nc.train.log, order=c(2,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.25
+
+arima(nc.train.log, order=c(3,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.16
+
+arima(nc.train.log, order=c(0,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -55.02
+
+arima(nc.train.log, order=c(1,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## aic = -54.68
+
+arima(nc.train.log, order=c(2,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+
+AICc(arima(nc.train.log, order=c(2,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML"))
+## aic = -55.6
+
+
+arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## AIC = -62.85
+
+arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+## AIC = -57.32
+
+arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(1,1,1), period = 12), method="ML")
+
+AICc(arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(1,1,1), period = 12), method="ML"))
+
+## AIC = -65.36
+
+arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(1,1,1), period = 12), method="ML")
+
+AICc(arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(1,1,1), period = 12), method="ML"))
+## AIC = -65.11
+
+
+arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(2,1,2), period = 12), method="ML")
+## AIC = -67.09
+
+#### MODEL B
+arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(NA,NA,NA,NA,NA,0,NA,NA,NA,0,NA,NA), method="ML")
+
+AICc(arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(NA,NA,NA,NA,NA,0,NA,NA,NA,0,NA,NA), method="ML"))
+## aic = -69.08
+
+arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(2,1,2), period = 12), method="ML")
+
+AICc(arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(2,1,2), period = 12), method="ML"))
+## aic = -67.7
+
+#### MODEL A
+arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(0, NA, NA, NA,NA,NA,NA,NA,0,NA,NA), method="ML")
+
+AICc(arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(0, NA, NA, NA,NA,NA,NA,NA,0,NA,NA), method="ML"))
+## aic = -70.26
+
+arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(2,1,1), period = 12), method="ML")
+## AIC = -57.32
+
+
+
+
+
+fit <- arima(nc.train.log, order=c(4,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(NA,NA,NA,NA,NA,0,NA,NA,NA,0,NA,NA), method="ML")
+
+res <- residuals(fit)
+
+hist(res,density=20,breaks=20, col="blue", xlab="", prob=TRUE, main = "Histogram of Residuals Model B")
+
+m <- mean(res)
+std <- sqrt(var(res))
+curve( dnorm(x,m,std), add=TRUE )
+
+m
+
+plot.ts(res,  main = "Time Series Plot Residuals Model B", ylab="Residuals")
+
+fitt <- lm(res ~ as.numeric(1:length(res))); abline(fitt, col="red")
+
+abline(h=mean(res), col="blue")
+
+qqnorm(res,main= "Normal Q-Q Plot for Model B")
+
+qqline(res,col="blue")
+
+acf(res, lag.max=20, main = "ACF Residuals Model B")
+
+pacf(res, lag.max=20, main = "PACF Residuals Model B")
+
+shapiro.test(res)
+
+Box.test(res, lag = 21, type = c("Box-Pierce"), fitdf = 10)
+
+Box.test(res, lag = 21, type = c("Ljung-Box"), fitdf = 10)
+
+Box.test(res^2, lag = 21, type = c("Ljung-Box"), fitdf = 0)
+
+acf(res^2, lag.max=NULL)
+
+ar(res, aic = TRUE, order.max = NULL, method = c("yule-walker"))
+
+install.packages("forecast")
+library(forecast)
+
+
+
+fit.A <- arima(nc.train.log, order=c(3,1,4), seasonal = list(order = c(2,1,2), period = 12), fixed = c(0, NA, NA, NA,NA,NA,NA,NA,0,NA,NA), method="ML")
+
+forecast(fit.A) 
+
+pred.tr <- predict(fit.A, n.ahead =12)
+
+U.tr= pred.tr$pred + 2*pred.tr$se 
+
+L.tr= pred.tr$pred - 2*pred.tr$se
+
+ts.plot(nc.train.log, xlim=c(300,length(nc.train.log)+12), ylim = c(min(nc.train.log),max(U.tr)), main="Zoomed Forecast of Transformed Data Using Model A")
+
+lines(U.tr, col="blue", lty="dashed")
+
+lines(L.tr, col="blue", lty="dashed")
+
+points((length(nc.train.log)+1):(length(nc.train.log)+12), pred.tr$pred, col="red", pch=18)
+
+
+
+pred.orig <- exp(pred.tr$pred)
+
+U= exp(U.tr)
+
+L= exp(L.tr)
+
+ts.plot(nc.train, xlim=c(1,length(nc.train)+12), ylim = c(min(nc.train),max(U)))
+
+lines(U, col="blue", lty="dashed")
+lines(L, col="blue", lty="dashed")
+
+points((length(nc.train)+1):(length(nc.train)+12), pred.orig, col="red",pch=18)
+
+
+
+ts.plot(nc.train, xlim = c(400,length(nc.train)+12), ylim = c(1,max(U)), main="Zoomed Forecast of Original Data Using Model A")
+
+lines(U, col="blue", lty="dashed")
+lines(L, col="blue", lty="dashed")
+
+points((length(nc.train)+1):(length(nc.train)+12), pred.orig, col="red", pch=18)
+
+
+
+ts.plot(num_cases, xlim = c(400,length(nc.train)+12), ylim = c(1,max(U)), col="dark green", ylab = "Number of Cases of Chickenpox", main="Zoomed Forecast with True Values from Test Set")
+
+
+lines(U, col="blue", lty="dashed")
+lines(L, col="blue", lty="dashed")
+
+points((length(nc.train)+1):(length(nc.train)+12), pred.orig, col="red", pch=18)
+
+
+
+
+
+
+
+
+ts.plot(num_cases, xlim = c(300,length(nc.train)+54), ylim = c(300,max(U)),col="red")
+
+
+
+
+
+ts.plot(num_cases, xlim = c(200,length(nc.train)+12), ylim = c(250,max(U)), col="red")
+
+lines(U, col="blue", lty="dashed")
+lines(L, col="blue", lty="dashed")
+
+points((length(nc.train)+1):(length(nc.train)+12), pred.orig, col="green")
+points((length(nc.train)+1):(length(nc.train)+12), pred.orig, col="black")
+
+
+
+
+pacf(nc.train.log, lag.max=NULL, main="PACF of the ln(U_t)")
+
+adf.test(nc.train.stat)
+
+auto.arima(nc.train.stat)
+
+auto.arima(nc.train.log)
+
+
+
+
+
+## Exploring the ACF and PACF gives a list of candidate models to try: 
+arima(apt.log, order=c(0,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+AICc(arima(apt.log, order=c(0,1,3), seasonal = list(order = c(0,1,1), period = 12), method="ML"))
+
+arima(apt.log, order=c(0,1,3), seasonal = list(order = c(0,1,1), period = 12), fixed = c(NA, 0, NA, NA), method="ML")
+AICc(arima(apt.log, order=c(0,1,3), seasonal = list(order = c(0,1,1), period = 12), fixed = c(NA, 0, NA, NA), method="ML"))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+arima(nc.train.stat, order=c(0,0,1), seasonal = list(order = c(0,0,0), period = 12), method="ML")
+
+AICc(arima(nc.train.stat, order=c(0,0,1), seasonal = list(order = c(0,0,0), period = 12), method="ML"))
+## AIC = 217.098
+
+
+arima(nc.train.log, order=c(3,1,2), seasonal = list(order = c(0,1,1), period = 12), method="ML")
+##AIC = -56!! 
+
+AICc(arima(nc.train.stat, order=c(3,0,2), seasonal = list(order = c(0,0,1), period = 12), method="ML"))
+## AIC = -55.65978
+
+arima(nc.train.stat, order=c(3,0,1), seasonal = list(order = c(0,0,1), period = 12), method="ML")
+
+
+arima(nc.train.log, order=c(3,0,4), seasonal = list(order = c(0,0,1), period = 12), method="ML")
+## AIC -63.61
+
+arima(nc.train.stat, order=c(3,0,2), seasonal = list(order = c(1,1,1), period = 12), method="ML")
+
+arima(nc.train.stat, order=c(4,0,1), seasonal = list(order = c(0,0,1), period = 12), method="ML")
+
+AICc(arima(nc.train.stat, order=c(4,0,1), seasonal = list(order = c(0,0,1), period = 12), method="ML"))
+## AIC = -54.78366
+
+
+
+
+
+
